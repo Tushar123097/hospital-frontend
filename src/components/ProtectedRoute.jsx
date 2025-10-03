@@ -2,9 +2,10 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Loader, Lock } from "lucide-react";
 
-function ProtectedRoute({ children }) {
+function ProtectedRoute({ children, allowedRoles = ["patient", "doctor"] }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [userRole, setUserRole] = useState(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -12,16 +13,18 @@ function ProtectedRoute({ children }) {
       const token = localStorage.getItem("token");
       const role = localStorage.getItem("role");
       
-      if (token && role === "patient") {
+      if (token && role && allowedRoles.includes(role)) {
         setIsAuthenticated(true);
+        setUserRole(role);
       } else {
         setIsAuthenticated(false);
+        setUserRole(role);
       }
       setLoading(false);
     };
 
     checkAuth();
-  }, []);
+  }, [allowedRoles]);
 
   if (loading) {
     return (
@@ -43,7 +46,10 @@ function ProtectedRoute({ children }) {
           </div>
           <h2 className="text-3xl font-bold text-gray-800 mb-4">Access Denied</h2>
           <p className="text-gray-600 mb-6">
-            You need to be logged in as a patient to access this page.
+            {userRole ? 
+              `You don't have permission to access this page as a ${userRole}.` :
+              "You need to be logged in to access this page."
+            }
           </p>
           <div className="space-y-3">
             <button
@@ -53,10 +59,10 @@ function ProtectedRoute({ children }) {
               Login as Patient
             </button>
             <button
-              onClick={() => navigate("/patient-signup")}
+              onClick={() => navigate("/doctor-login")}
               className="w-full bg-green-600 text-white px-6 py-3 rounded-xl hover:bg-green-700 transition font-medium"
             >
-              Sign Up as Patient
+              Login as Doctor
             </button>
             <button
               onClick={() => navigate("/")}

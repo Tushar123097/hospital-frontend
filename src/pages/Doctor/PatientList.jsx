@@ -13,10 +13,82 @@ import {
     Search,
     Filter,
     Eye,
-    Users
+    Users,
+    X
 } from "lucide-react";
 import NavBar from "../../components/Navbar";
 import API_BASE_URL from "../../config";
+
+// Profile completion banner component
+function ProfileCompletionBanner() {
+    const [showBanner, setShowBanner] = useState(false);
+    const [profileData, setProfileData] = useState(null);
+
+    useEffect(() => {
+        const checkProfile = async () => {
+            try {
+                const token = localStorage.getItem("token");
+                const userId = localStorage.getItem("userId");
+
+                if (!token || !userId) return;
+
+                const response = await fetch(`${API_BASE_URL}/api/auth/profile/${userId}`, {
+                    headers: {
+                        "Authorization": `Bearer ${token}`,
+                        "Content-Type": "application/json"
+                    }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    setProfileData(data);
+
+                    // Show banner if profile is incomplete
+                    const isIncomplete = !data.specialty || !data.degree || !data.experience || !data.fees;
+                    setShowBanner(isIncomplete);
+                }
+            } catch (err) {
+                console.log("Could not check profile:", err);
+            }
+        };
+
+        checkProfile();
+    }, []);
+
+    if (!showBanner) return null;
+
+    return (
+        <div className="mb-6 bg-yellow-50 border border-yellow-200 rounded-2xl p-4">
+            <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-yellow-100 rounded-full flex items-center justify-center">
+                        <AlertCircle className="w-6 h-6 text-yellow-600" />
+                    </div>
+                    <div>
+                        <h3 className="font-semibold text-yellow-800">Complete Your Profile</h3>
+                        <p className="text-yellow-700 text-sm">
+                            Complete your profile to appear in patient bookings and receive more appointments.
+                        </p>
+                    </div>
+                </div>
+                <div className="flex gap-2">
+                    <a
+                        href="/doctor-profile"
+                        className="bg-yellow-600 text-white px-4 py-2 rounded-lg hover:bg-yellow-700 transition text-sm font-medium"
+                    >
+                        Complete Profile
+                    </a>
+                    <button
+                        onClick={() => setShowBanner(false)}
+                        className="text-yellow-600 hover:text-yellow-700 p-2"
+                    >
+                        <X className="w-4 h-4" />
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
 
 function PatientList() {
     const [patients, setPatients] = useState([]);
@@ -26,6 +98,7 @@ function PatientList() {
     const [statusFilter, setStatusFilter] = useState("all");
     const [selectedPatient, setSelectedPatient] = useState(null);
     const [notification, setNotification] = useState(null);
+    const [updatingStatus, setUpdatingStatus] = useState(false);
 
     useEffect(() => {
         const fetchPatients = async () => {
@@ -39,9 +112,12 @@ function PatientList() {
                     return;
                 }
 
+                // Note: Doctors can view patient list even with incomplete profiles
+                // They just won't appear in patient bookings until profile is complete
+
                 console.log("Fetching patient appointments...");
 
-                const response = await fetch(`${API_BASE_URL}/appointments/doctor-appointments`, {
+                const response = await fetch(`${API_BASE_URL}/api/appointments/doctor-appointments`, {
                     method: "GET",
                     headers: {
                         "Content-Type": "application/json",
@@ -113,12 +189,12 @@ function PatientList() {
 
     const getStatusIcon = (status) => {
         switch (status) {
+            case "waiting":
+                return <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 text-yellow-600" />;
             case "confirmed":
                 return <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />;
             case "completed":
                 return <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 text-green-600" />;
-            case "waiting":
-                return <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 text-yellow-600" />;
             case "cancelled":
                 return <XCircle className="w-4 h-4 sm:w-5 sm:h-5 text-red-600" />;
             default:
@@ -128,12 +204,12 @@ function PatientList() {
 
     const getStatusColor = (status) => {
         switch (status) {
+            case "waiting":
+                return "bg-yellow-100 text-yellow-800 border-yellow-200";
             case "confirmed":
                 return "bg-blue-100 text-blue-800 border-blue-200";
             case "completed":
                 return "bg-green-100 text-green-800 border-green-200";
-            case "waiting":
-                return "bg-yellow-100 text-yellow-800 border-yellow-200";
             case "cancelled":
                 return "bg-red-100 text-red-800 border-red-200";
             default:
@@ -153,11 +229,12 @@ function PatientList() {
     // Update appointment status
     const updateAppointmentStatus = async (appointmentId, newStatus) => {
         try {
+            setUpdatingStatus(true);
             const token = localStorage.getItem("token");
 
             console.log(`Updating appointment ${appointmentId} to status: ${newStatus}`);
 
-            const response = await fetch(`${API_BASE_URL}/appointments/${appointmentId}/status`, {
+            const response = await fetch(`${API_BASE_URL}/api/appointments/${appointmentId}/status`, {
                 method: "PUT",
                 headers: {
                     "Content-Type": "application/json",
@@ -192,9 +269,11 @@ function PatientList() {
 
                 const notificationData = {
                     type: 'success',
-                    title: 'Status Updated Successfully!',
-                    message: `Appointment marked as ${newStatus}. Email notification sent to patient.`,
-                    patientName: patientName
+                    title: '✅ Status Updated Successfully!',
+                    message: `Appointment status changed from "${patient?.status || 'unknown'}" to "${newStatus}". Patient will be notified.`,
+                    patientName: patientName,
+                    oldStatus: patient?.status,
+                    newStatus: newStatus
                 };
 
                 console.log("Notification data:", notificationData);
@@ -226,6 +305,8 @@ function PatientList() {
             });
 
             setTimeout(() => setNotification(null), 5000);
+        } finally {
+            setUpdatingStatus(false);
         }
     };
 
@@ -379,31 +460,42 @@ function PatientList() {
                                     </div>
                                     Update Appointment Status
                                 </h2>
-                             <div className="flex flex-col md:flex-row gap-4 w-full">
-  <button
-    onClick={() =>
-      updateAppointmentStatus(selectedPatient.appointmentId, "waiting")
-    }
-    className="flex-1 flex items-center justify-center gap-2 bg-blue-600 text-white px-6 py-4 rounded-xl hover:bg-yellow-700 transition font-medium text-base"
-    disabled={selectedPatient.status === "waiting"}
-  >
-    <AlertCircle className="w-5 h-5" />
-    Mark as Waiting
-  </button>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full">
+                                    <button
+                                        onClick={() =>
+                                            updateAppointmentStatus(selectedPatient.appointmentId, "waiting")
+                                        }
+                                        className="flex items-center justify-center gap-2 bg-yellow-600 text-white px-6 py-4 rounded-xl hover:bg-yellow-700 transition font-medium text-base disabled:bg-gray-400 disabled:cursor-not-allowed"
+                                        disabled={selectedPatient.status === "waiting" || updatingStatus}
+                                    >
+                                        {updatingStatus ? <Loader className="w-5 h-5 animate-spin" /> : <AlertCircle className="w-5 h-5" />}
+                                        {updatingStatus ? "Updating..." : "Mark as Waiting"}
+                                    </button>
 
-  <button
-    onClick={() =>
-      updateAppointmentStatus(selectedPatient.appointmentId, "completed")
-    }
-    className="flex-1 flex items-center justify-center gap-2 bg-green-600 text-white px-6 py-4 rounded-xl hover:bg-green-700 transition font-medium text-base"
-    disabled={selectedPatient.status === "completed"}
-  >
-    <CheckCircle className="w-5 h-5" />
-    Mark as Completed
-  </button>
+                                    <button
+                                        onClick={() =>
+                                            updateAppointmentStatus(selectedPatient.appointmentId, "confirmed")
+                                        }
+                                        className="flex items-center justify-center gap-2 bg-blue-600 text-white px-6 py-4 rounded-xl hover:bg-blue-700 transition font-medium text-base disabled:bg-gray-400 disabled:cursor-not-allowed"
+                                        disabled={selectedPatient.status === "confirmed" || updatingStatus}
+                                    >
+                                        {updatingStatus ? <Loader className="w-5 h-5 animate-spin" /> : <CheckCircle className="w-5 h-5" />}
+                                        {updatingStatus ? "Updating..." : "Mark as Confirmed"}
+                                    </button>
+
+                                    <button
+                                        onClick={() =>
+                                            updateAppointmentStatus(selectedPatient.appointmentId, "completed")
+                                        }
+                                        className="flex items-center justify-center gap-2 bg-green-600 text-white px-6 py-4 rounded-xl hover:bg-green-700 transition font-medium text-base disabled:bg-gray-400 disabled:cursor-not-allowed"
+                                        disabled={selectedPatient.status === "completed" || updatingStatus}
+                                    >
+                                        {updatingStatus ? <Loader className="w-5 h-5 animate-spin" /> : <CheckCircle className="w-5 h-5" />}
+                                        {updatingStatus ? "Updating..." : "Mark as Completed"}
+                                    </button>
 
 
-                                   
+
                                 </div>
                             </div>
                         </div>
@@ -483,6 +575,9 @@ function PatientList() {
                             View all patients who have booked appointments with you
                         </p>
                     </div>
+
+                    {/* Profile Completion Reminder */}
+                    <ProfileCompletionBanner />
 
                     {/* Search and Filter */}
                     <div className="bg-white rounded-2xl p-4 sm:p-6 shadow-lg mb-8">

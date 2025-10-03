@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Stethoscope,
   Star,
@@ -14,54 +14,49 @@ import {
 import NavBar from "../components/Navbar";
 import API_BASE_URL from "../config";
 
-// Dummy doctors with your REAL database IDs
-const doctors = [
-  {
-    id: "68cc4deb776547547bab8abf", // Current doctor ID from database
-    name: "Dr. Sarah Johnson",
-    specialty: "Cardiologist",
-    experience: "15 years",
-    rating: 4.8,
-    image: "https://randomuser.me/api/portraits/women/68.jpg",
-    fee: 800
-  },
-  {
-    id: "68cc4deb776547547bab8abf", // Current doctor ID from database
-    name: "Dr. Michael Lee",
-    specialty: "Neurologist",
-    experience: "12 years",
-    rating: 4.9,
-    image: "https://randomuser.me/api/portraits/men/45.jpg",
-    fee: 1000
-  },
-  {
-    id: "68cc4deb776547547bab8abf", // Current doctor ID from database
-    name: "Dr. Emily Davis",
-    specialty: "Pediatrician",
-    experience: "10 years",
-    rating: 4.7,
-    image: "https://randomuser.me/api/portraits/women/72.jpg",
-    fee: 600
-  },
-  {
-    id: "68cc4deb776547547bab8abf", // Current doctor ID from database
-    name: "Dr. Robert Wilson",
-    specialty: "Orthopedic",
-    experience: "18 years",
-    rating: 4.6,
-    image: "https://randomuser.me/api/portraits/men/32.jpg",
-    fee: 900
-  }
-];
-
 function BookAppointment() {
+  const [doctors, setDoctors] = useState([]);
   const [selectedDoctor, setSelectedDoctor] = useState(null);
   const [selectedDate, setSelectedDate] = useState("");
   const [symptoms, setSymptoms] = useState("");
   const [bookingSuccess, setBookingSuccess] = useState(false);
   const [appointmentData, setAppointmentData] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [doctorsLoading, setDoctorsLoading] = useState(true);
   const [error, setError] = useState("");
+
+  // Fetch doctors on component mount
+  useEffect(() => {
+    const fetchDoctors = async () => {
+      try {
+        console.log("Fetching doctors...");
+        console.log("Fetching doctors...");
+        console.log("API URL:", `${API_BASE_URL}/api/doctors/doctors`);
+
+        // Temporarily fetch without authentication for testing
+        const response = await fetch(`${API_BASE_URL}/api/doctors/doctors`);
+
+        console.log("Response status:", response.status);
+        const data = await response.json();
+        console.log("Doctors response:", data);
+        
+        if (response.ok && data.success) {
+          console.log("Doctors data:", data.data);
+          setDoctors(data.data || []); // The response has doctors in 'data' field
+        } else {
+          console.error("Failed to fetch doctors:", data);
+          setError(data.message || "Failed to load doctors");
+        }
+      } catch (err) {
+        console.error("Error fetching doctors:", err);
+        setError("Network error: Failed to load doctors");
+      } finally {
+        setDoctorsLoading(false);
+      }
+    };
+
+    fetchDoctors();
+  }, []);
 
   const handleBookAppointment = async (e) => {
     e.preventDefault();
@@ -79,20 +74,22 @@ function BookAppointment() {
       }
 
       // Debug logging
-      console.log("Booking request:", {
-        doctorId: selectedDoctor.id,
-        date: selectedDate,
-        token: token ? "Token exists" : "No token"
-      });
+      console.log("=== FRONTEND BOOKING REQUEST ===");
+      console.log("Selected doctor:", selectedDoctor);
+      console.log("Selected date:", selectedDate);
+      console.log("Token exists:", !!token);
+      console.log("Token preview:", token ? token.substring(0, 20) + "..." : "No token");
 
       const requestBody = {
         doctorId: selectedDoctor.id,
-        date: selectedDate
+        date: selectedDate,
+        symptoms: symptoms
       };
 
       console.log("Request body:", requestBody);
+      console.log("API URL:", `${API_BASE_URL}/api/appointments/book`);
 
-      const response = await fetch(`${API_BASE_URL}/appointments/book`, {
+      const response = await fetch(`${API_BASE_URL}/api/appointments/book`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -110,6 +107,7 @@ function BookAppointment() {
         setAppointmentData(data.appointment);
         setBookingSuccess(true);
       } else {
+        console.error("Booking failed:", data);
         setError(data.error || data.message || "Failed to book appointment");
       }
     } catch (err) {
@@ -202,8 +200,18 @@ function BookAppointment() {
                 <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">Select Doctor</h2>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-7xl mx-auto">
-                {doctors.map((doctor, index) => (
+              {doctorsLoading ? (
+                <div className="text-center py-8">
+                  <Loader className="w-8 h-8 text-blue-600 animate-spin mx-auto mb-4" />
+                  <p className="text-gray-600">Loading doctors...</p>
+                </div>
+              ) : doctors.length === 0 ? (
+                <div className="text-center py-8">
+                  <p className="text-gray-600">No doctors available at the moment.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-7xl mx-auto">
+                  {doctors.map((doctor, index) => (
                   <div
                     key={`${doctor.id}-${index}`}
                     onClick={() => setSelectedDoctor(doctor)}
@@ -219,14 +227,16 @@ function BookAppointment() {
                     />
                     <h3 className="font-bold text-gray-800 text-center text-lg">{doctor.name}</h3>
                     <p className="text-blue-600 text-center font-semibold">{doctor.specialty}</p>
+                    <p className="text-gray-500 text-center text-sm mt-1">{doctor.experience}</p>
                     <div className="flex items-center justify-center gap-1 mt-3">
                       <Star className="w-5 h-5 text-yellow-500 fill-current" />
-                      <span className="text-gray-600 font-medium">{doctor.rating}</span>
+                      <span className="text-gray-600 font-medium">4.8</span>
                     </div>
-                    <p className="text-center text-green-600 font-bold text-xl mt-3">₹{doctor.fee}</p>
+                    <p className="text-center text-green-600 font-bold text-xl mt-3">₹{doctor.fees}</p>
                   </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Step 2: Select Date */}
@@ -284,7 +294,7 @@ function BookAppointment() {
                     </div>
                     <div className="bg-yellow-50 p-4 rounded-2xl">
                       <span className="font-semibold text-gray-700 block mb-2">Fee:</span>
-                      <p className="text-green-600 font-bold text-xl">₹{selectedDoctor.fee}</p>
+                      <p className="text-green-600 font-bold text-xl">₹{selectedDoctor.fees}</p>
                     </div>
                   </div>
                 </div>

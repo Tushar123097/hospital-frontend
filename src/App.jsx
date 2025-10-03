@@ -8,9 +8,11 @@ import PatientLogin from "./pages/Patient/PatientLogin"; // create this page nex
 // import DoctorSignup from "./pages/DoctorSignup";
 import DoctorSignup from "./pages/Doctor/DoctorSignup";
 import DoctorLogin from "./pages/Doctor/DoctorLogin";
+import DoctorProfile from "./pages/Doctor/DoctorProfile";
 import PatientList from "./pages/Doctor/PatientList";
 import BookAppointment from "./pages/BookAppointment";
 import MyAppointment from "./pages/MyAppointment";
+import Profile from "./pages/Profile";
 import ProtectedRoute from "./components/ProtectedRoute";
 
 function App() {
@@ -26,15 +28,29 @@ function App() {
         {/* Doctor Routes */}
         <Route path="/doctor-signup" element={<DoctorSignup />} />
         <Route path="/doctor-login" element={<DoctorLogin />} />
-        <Route path="/patient-list" element={<PatientList />} />
+        <Route path="/doctor-profile" element={
+          <ProtectedRoute allowedRoles={["doctor"]}>
+            <DoctorProfile />
+          </ProtectedRoute>
+        } />
+        <Route path="/patient-list" element={
+          <ProtectedRoute allowedRoles={["doctor"]}>
+            <PatientList />
+          </ProtectedRoute>
+        } />
         <Route path="/book-appointment" element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRoles={["patient"]}>
             <BookAppointment />
           </ProtectedRoute>
         } />
         <Route path="/my-appointments" element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRoles={["patient"]}>
             <MyAppointment />
+          </ProtectedRoute>
+        } />
+        <Route path="/profile" element={
+          <ProtectedRoute allowedRoles={["patient"]}>
+            <Profile />
           </ProtectedRoute>
         } />
 

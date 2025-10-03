@@ -22,11 +22,17 @@ function MyAppointment() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [selectedAppointment, setSelectedAppointment] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    const fetchAppointments = async () => {
-      try {
-        const token = localStorage.getItem("token");
+  const fetchAppointments = async (isRefresh = false) => {
+    try {
+      if (isRefresh) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
+      setError("");
+      const token = localStorage.getItem("token");
         
         if (!token) {
           setError("Please login first to view your appointments");
@@ -36,7 +42,7 @@ function MyAppointment() {
 
         console.log("Fetching appointments with token:", token ? "Present" : "Missing");
 
-        const response = await fetch(`${API_BASE_URL}/appointments/my-appointments`, {
+        const response = await fetch(`${API_BASE_URL}/api/appointments/my-appointments`, {
           method: "GET",
           headers: {
             "Content-Type": "application/json",
@@ -124,23 +130,27 @@ function MyAppointment() {
           console.log("API Error:", data);
           setError(data.message || "Failed to fetch appointments");
         }
-      } catch (err) {
-        console.error("Error fetching appointments:", err);
-        setError("Something went wrong. Please try again.");
-      } finally {
-        setLoading(false);
-      }
-    };
+    } catch (err) {
+      console.error("Error fetching appointments:", err);
+      setError("Something went wrong. Please try again.");
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
 
+  useEffect(() => {
     fetchAppointments();
   }, []);
 
   const getStatusIcon = (status) => {
     switch (status) {
-      case "confirmed":
-        return <CheckCircle className="w-5 h-5 text-green-600" />;
       case "waiting":
         return <AlertCircle className="w-5 h-5 text-yellow-600" />;
+      case "confirmed":
+        return <CheckCircle className="w-5 h-5 text-blue-600" />;
+      case "completed":
+        return <CheckCircle className="w-5 h-5 text-green-600" />;
       case "cancelled":
         return <XCircle className="w-5 h-5 text-red-600" />;
       default:
@@ -150,10 +160,12 @@ function MyAppointment() {
 
   const getStatusColor = (status) => {
     switch (status) {
-      case "confirmed":
-        return "bg-green-100 text-green-800 border-green-200";
       case "waiting":
         return "bg-yellow-100 text-yellow-800 border-yellow-200";
+      case "confirmed":
+        return "bg-blue-100 text-blue-800 border-blue-200";
+      case "completed":
+        return "bg-green-100 text-green-800 border-green-200";
       case "cancelled":
         return "bg-red-100 text-red-800 border-red-200";
       default:
@@ -345,9 +357,19 @@ function MyAppointment() {
       {/* Header */}
       <div className="px-4 sm:px-6 lg:px-8 py-8 sm:py-12 pt-20 sm:pt-24">
         <div className="max-w-6xl mx-auto text-center">
-          <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-green-500 mb-4">
-            My Appointments
-          </h1>
+          <div className="flex items-center justify-center gap-4 mb-4">
+            <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-green-500">
+              My Appointments
+            </h1>
+            {/* <button
+              onClick={() => fetchAppointments(true)}
+              disabled={refreshing}
+              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition flex items-center gap-2 disabled:bg-gray-400"
+            >
+              <Loader className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+              {refreshing ? 'Refreshing...' : 'Refresh'}
+            </button> */}
+          </div>
           <p className="text-gray-600 text-base sm:text-lg max-w-2xl mx-auto px-4">
             View and manage all your scheduled appointments
           </p>
